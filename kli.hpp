@@ -18,7 +18,7 @@
 
 #include <intrin.h>
 #include <cstdint>
-#include <type_traits>
+#include <xtr1common>
 
 #pragma warning(disable: 4201)
 
