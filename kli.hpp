@@ -17,8 +17,7 @@
 #pragma once
 
 #include <intrin.h>
-#include <cstdint>
-#include <xtr1common>
+#include "stdint.h"
 
 #pragma warning(disable: 4201)
 
@@ -34,9 +33,45 @@
 #define KLI_FORCEINLINE inline
 #endif
 
+namespace std
+{
+	// STRUCT TEMPLATE remove_reference
+	template <class _Ty>
+	struct remove_reference {
+		using type = _Ty;
+	};
+
+	template <class _Ty>
+	struct remove_reference<_Ty&> {
+		using type = _Ty;
+	};
+
+	template <class _Ty>
+	struct remove_reference<_Ty&&> {
+		using type = _Ty;
+	};
+
+	template <class _Ty>
+	using remove_reference_t = typename remove_reference<_Ty>::type;
+
+	// STRUCT TEMPLATE remove_const
+	template <class _Ty>
+	struct remove_const { // remove top-level const qualifier
+		using type = _Ty;
+	};
+
+	template <class _Ty>
+	struct remove_const<const _Ty> {
+		using type = _Ty;
+	};
+
+	template <class _Ty>
+	using remove_const_t = typename remove_const<_Ty>::type;
+}
+
 namespace kli {
 	namespace cache {
-		inline uintptr_t kernel_base;
+		inline uintptr_t base;
 	}
 
 	namespace literals {
@@ -314,6 +349,40 @@ namespace kli {
 		constexpr uint16_t IMAGE_FILE_MACHINE_AMD64 = 0x8664;
 		constexpr auto IMAGE_DIRECTORY_ENTRY_EXPORT = 0;
 
+		typedef enum _SYSTEM_INFORMATION_CLASS
+		{
+			SystemBasicInformation,
+			SystemProcessorInformation,
+			SystemPerformanceInformation,
+			SystemTimeOfDayInformation,
+			SystemPathInformation,
+			SystemProcessInformation,
+			SystemCallCountInformation,
+			SystemDeviceInformation,
+			SystemProcessorPerformanceInformation,
+			SystemFlagsInformation,
+			SystemCallTimeInformation,
+			SystemModuleInformation,
+		} SYSTEM_INFORMATION_CLASS, *PSYSTEM_INFORMATION_CLASS;
+
+		typedef struct _SYSTEM_MODULE {
+			HANDLE Section;
+			PVOID MappedBase;
+			uint64_t ImageBase;
+			ULONG ImageSize;
+			ULONG Flags;
+			USHORT LoadOrderIndex;
+			USHORT InitOrderIndex;
+			USHORT LoadCount;
+			USHORT OffsetToFileName;
+			UCHAR  FullPathName[MAXIMUM_FILENAME_LENGTH];
+		} SYSTEM_MODULE, *PSYSTEM_MODULE;
+
+		typedef struct _SYSTEM_MODULE_INFORMATION {
+			ULONG NumberOfModules;
+			SYSTEM_MODULE Modules[1];
+		} SYSTEM_MODULE_INFORMATION, *PSYSTEM_MODULE_INFORMATION;
+
 		KLI_FORCEINLINE bool is_kernel_base(uintptr_t addr)
 		{
 			const auto dos_header = (PIMAGE_DOS_HEADER)addr;
@@ -342,55 +411,52 @@ namespace kli {
 			return true;
 		}
 
-		KLI_FORCEINLINE uintptr_t find_kernel_base()
+		KLI_FORCEINLINE uintptr_t get_kernel_base()
 		{
-			idtr k_idtr;
-			__sidt((void *)&k_idtr);
+			uintptr_t addr = 0;
 
-			if (!k_idtr.idt_base)
-				__debugbreak();
-
-			//
-			// Find KiDivideErrorFault through IDT (index 0)
-			//
-			const auto isr_divide_error = k_idtr[VECTOR_DIVIDE_ERROR_EXCEPTION];
-			const auto pfn_KiDivideErrorFault = ((uintptr_t)isr_divide_error->offset_low) |
-				(((uintptr_t)isr_divide_error->offset_mid) << 16) |
-				(((uintptr_t)isr_divide_error->offset_high) << 32);
-
-			//
-			// Walk down from KiDivideErrorFault for 'MZ' word. Because of discardable sections we might run into a random PE image,
-			// so is_kernel_base checks DLL name in EAT to make sure we caught ntoskrnl.exe. We walk down 2 MiB because ntoskrnl.exe is mapped
-			// using PDEs and not PTEs, so the base will always be 2 MiB aligned.
-			//
-			const auto aligned_isr = pfn_KiDivideErrorFault & ~(2_MiB - 1);
-			uintptr_t address = aligned_isr;
-
-			while (!is_kernel_base(address)) {
-				address -= 2_MiB;
+			ULONG size = 0;
+			NTSTATUS status = ZwQuerySystemInformation(SystemModuleInformation, 0, 0, &size);
+			if (STATUS_INFO_LENGTH_MISMATCH != status) {
+				return addr;
 			}
 
-			return address;
+			PSYSTEM_MODULE_INFORMATION modules = (PSYSTEM_MODULE_INFORMATION)ExAllocatePool(NonPagedPool, size);
+			if (!modules) {
+				return addr;
+			}
+
+			if (!NT_SUCCESS(status = ZwQuerySystemInformation(SystemModuleInformation, modules, size, 0))) {
+				ExFreePool(modules);
+				return addr;
+			}
+
+			if (modules->NumberOfModules > 0) {
+				addr = modules->Modules[0].ImageBase;
+			}
+
+			ExFreePool(modules);
+			return addr;
 		}
 	}
 
 	KLI_FORCEINLINE uintptr_t find_kernel_export(uint64_t export_hash)
 	{
-		if (!cache::kernel_base)
-			cache::kernel_base = detail::find_kernel_base();
+		if (!cache::base)
+			cache::base = detail::get_kernel_base();
 
-		const auto dos_header = (detail::PIMAGE_DOS_HEADER)cache::kernel_base;
-		const auto nt_headers = (detail::PIMAGE_NT_HEADERS64)(cache::kernel_base + dos_header->e_lfanew);
-		const auto export_directory = (detail::PIMAGE_EXPORT_DIRECTORY)(cache::kernel_base +
+		const auto dos_header = (detail::PIMAGE_DOS_HEADER)cache::base;
+		const auto nt_headers = (detail::PIMAGE_NT_HEADERS64)(cache::base + dos_header->e_lfanew);
+		const auto export_directory = (detail::PIMAGE_EXPORT_DIRECTORY)(cache::base +
 			nt_headers->OptionalHeader.DataDirectory[detail::IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
 
-		const auto address_of_functions = (uint32_t *)(cache::kernel_base + export_directory->AddressOfFunctions);
-		const auto address_of_names = (uint32_t *)(cache::kernel_base + export_directory->AddressOfNames);
-		const auto address_of_name_ordinals = (uint16_t *)(cache::kernel_base + export_directory->AddressOfNameOrdinals);
+		const auto address_of_functions = (uint32_t *)(cache::base + export_directory->AddressOfFunctions);
+		const auto address_of_names = (uint32_t *)(cache::base + export_directory->AddressOfNames);
+		const auto address_of_name_ordinals = (uint16_t *)(cache::base + export_directory->AddressOfNameOrdinals);
 
 		for (uint32_t i = 0; i < export_directory->NumberOfNames; ++i)
 		{
-			const auto export_entry_name = (char *)(cache::kernel_base + address_of_names[i]);
+			const auto export_entry_name = (char *)(cache::base + address_of_names[i]);
 			const auto export_entry_hash = KLI_HASH_RTS(export_entry_name);
 
 			//
@@ -398,7 +464,7 @@ namespace kli {
 			// address_of_name_ordinals gets the ordinal through our own index - i.
 			//
 			if (export_entry_hash == export_hash)
-				return cache::kernel_base + address_of_functions[address_of_name_ordinals[i]];
+				return cache::base + address_of_functions[address_of_name_ordinals[i]];
 		}
 
 		__debugbreak();
