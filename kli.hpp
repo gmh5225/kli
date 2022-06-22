@@ -16,10 +16,10 @@
 
 #pragma once
 
+#pragma warning( disable : 4201 5040)
+
 #include <intrin.h>
 #include "stdint.h"
-
-#pragma warning(disable: 4201)
 
 #ifdef _MSC_VER
 #define _KLI_FORCEINLINE __forceinline
