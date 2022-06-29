@@ -19,7 +19,7 @@
 #pragma warning( disable : 4201 5040)
 
 #include <intrin.h>
-#include "stdint.h"
+#include "clonestdint.h"
 
 #ifdef _MSC_VER
 #define _KLI_FORCEINLINE __forceinline
