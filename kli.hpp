@@ -76,14 +76,6 @@ namespace kli {
 		inline unsigned long long base;
 	}
 
-	namespace literals {
-		KLI_FORCEINLINE constexpr unsigned long long operator ""_KiB(unsigned long long num) { return num << 10; }
-		KLI_FORCEINLINE constexpr unsigned long long operator ""_MiB(unsigned long long num) { return num << 20; }
-		KLI_FORCEINLINE constexpr unsigned long long operator ""_GiB(unsigned long long num) { return num << 30; }
-		KLI_FORCEINLINE constexpr unsigned long long operator ""_TiB(unsigned long long num) { return num << 40; }
-	}
-	using namespace literals;
-
 	namespace hash {
 		namespace detail {
 			template <typename Size>
