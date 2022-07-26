@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef HV_KLI_HPP
+#define HV_KLI_HPP
 
-#pragma warning( disable : 4201 5040)
+#pragma warning( disable : 5040)
 
 #include <intrin.h>
-#include "clonestdint.h"
 
 #ifdef _MSC_VER
 #define _KLI_FORCEINLINE __forceinline
@@ -33,7 +33,7 @@
 #define KLI_FORCEINLINE inline
 #endif
 
-namespace std
+namespace clonestd
 {
 	// STRUCT TEMPLATE remove_reference
 	template <class _Ty>
@@ -69,16 +69,18 @@ namespace std
 	using remove_const_t = typename remove_const<_Ty>::type;
 }
 
+#define KLI_FN(name) ((decltype(&##name))(::kli::find_kernel_export(KLI_HASH_STR(#name))))
+
 namespace kli {
 	namespace cache {
-		inline uintptr_t base;
+		inline unsigned long long base;
 	}
 
 	namespace literals {
-		KLI_FORCEINLINE constexpr size_t operator ""_KiB(size_t num) { return num << 10; }
-		KLI_FORCEINLINE constexpr size_t operator ""_MiB(size_t num) { return num << 20; }
-		KLI_FORCEINLINE constexpr size_t operator ""_GiB(size_t num) { return num << 30; }
-		KLI_FORCEINLINE constexpr size_t operator ""_TiB(size_t num) { return num << 40; }
+		KLI_FORCEINLINE constexpr unsigned long long operator ""_KiB(unsigned long long num) { return num << 10; }
+		KLI_FORCEINLINE constexpr unsigned long long operator ""_MiB(unsigned long long num) { return num << 20; }
+		KLI_FORCEINLINE constexpr unsigned long long operator ""_GiB(unsigned long long num) { return num << 30; }
+		KLI_FORCEINLINE constexpr unsigned long long operator ""_TiB(unsigned long long num) { return num << 40; }
 	}
 	using namespace literals;
 
@@ -88,17 +90,17 @@ namespace kli {
 			struct fnv_constants;
 
 			template <>
-			struct fnv_constants<uint32_t>
+			struct fnv_constants<unsigned int>
 			{
-				constexpr static uint32_t default_offset_basis = 0x811C9DC5UL;
-				constexpr static uint32_t prime = 0x01000193UL;
+				constexpr static unsigned int default_offset_basis = 0x811C9DC5UL;
+				constexpr static unsigned int prime = 0x01000193UL;
 			};
 
 			template <>
-			struct fnv_constants<uint64_t>
+			struct fnv_constants<unsigned long long>
 			{
-				constexpr static uint64_t default_offset_basis = 0xCBF29CE484222325ULL;
-				constexpr static uint64_t prime = 0x100000001B3ULL;
+				constexpr static unsigned long long default_offset_basis = 0xCBF29CE484222325ULL;
+				constexpr static unsigned long long prime = 0x100000001B3ULL;
 			};
 
 			template <typename Char>
@@ -129,7 +131,7 @@ namespace kli {
 		template <typename Char> KLI_FORCEINLINE constexpr Char flip_case(Char c) { return detail::char_traits<Char>::flip_case(c); }
 
 		template <typename Type, typename Char, bool ToLower = false>
-		KLI_FORCEINLINE constexpr Type hash_fnv1a(const Char *str)
+		KLI_FORCEINLINE constexpr Type hash_fnv1a(const Char* str)
 		{
 			Type val = detail::fnv_constants<Type>::default_offset_basis;
 
@@ -146,21 +148,18 @@ namespace kli {
 			return val;
 		}
 
-		//
 		// Dumb hack to force a constexpr value to be evaluated in compiletime
-		//
-
 		template <typename Type, Type Value>
 		struct force_cx
 		{
 			constexpr static auto value = Value;
 		};
 
-#define _KLI_HASH_RTS(str) (::kli::hash::hash_fnv1a<uint64_t, std::remove_const_t<std::remove_reference_t<decltype(*(str))>>, false>((str)))
-#define _KLI_HASH_RTS_TOLOWER(str) (::kli::hash::hash_fnv1a<uint64_t, std::remove_const_t<std::remove_reference_t<decltype(*(str))>>, true>((str)))
+#define _KLI_HASH_RTS(str) (::kli::hash::hash_fnv1a<unsigned long long, clonestd::remove_const_t<clonestd::remove_reference_t<decltype(*(str))>>, false>((str)))
+#define _KLI_HASH_RTS_TOLOWER(str) (::kli::hash::hash_fnv1a<unsigned long long, clonestd::remove_const_t<clonestd::remove_reference_t<decltype(*(str))>>, true>((str)))
 
-#define _KLI_HASH_STR(str) (::kli::hash::force_cx<uint64_t, ::kli::hash::hash_fnv1a<uint64_t, std::remove_const_t<std::remove_reference_t<decltype(*(str))>>, false>((str))>::value)
-#define _KLI_HASH_STR_TOLOWER(str) (::kli::hash::force_cx<uint64_t, ::kli::hash::hash_fnv1a<uint64_t, std::remove_const_t<std::remove_reference_t<decltype(*(str))>>, true>((str))>::value)
+#define _KLI_HASH_STR(str) (::kli::hash::force_cx<unsigned long long, ::kli::hash::hash_fnv1a<unsigned long long, clonestd::remove_const_t<clonestd::remove_reference_t<decltype(*(str))>>, false>((str))>::value)
+#define _KLI_HASH_STR_TOLOWER(str) (::kli::hash::force_cx<unsigned long long, ::kli::hash::hash_fnv1a<unsigned long long, clonestd::remove_const_t<clonestd::remove_reference_t<decltype(*(str))>>, true>((str))>::value)
 
 #ifndef KLI_USE_TOLOWER
 		// Don't use tolower
@@ -174,273 +173,155 @@ namespace kli {
 	}
 
 	namespace detail {
-#pragma pack(push, 1)
-		enum exception_vector
-		{
-			VECTOR_DIVIDE_ERROR_EXCEPTION = 0,
-			VECTOR_DEBUG_EXCEPTION = 1,
-			VECTOR_NMI_INTERRUPT = 2,
-			VECTOR_BREAKPOINT_EXCEPTION = 3,
-			VECTOR_OVERFLOW_EXCEPTION = 4,
-			VECTOR_BOUND_EXCEPTION = 5,
-			VECTOR_UNDEFINED_OPCODE_EXCEPTION = 6,
-			VECTOR_DEVICE_NOT_AVAILABLE_EXCEPTION = 7,
-			VECTOR_DOUBLE_FAULT_EXCEPTION = 8,
-			VECTOR_COPROCESSOR_SEGMENT_OVERRUN = 9,
-			VECTOR_INVALID_TSS_EXCEPTION = 10,
-			VECTOR_SEGMENT_NOT_PRESENT = 11,
-			VECTOR_STACK_FAULT_EXCEPTION = 12,
-			VECTOR_GENERAL_PROTECTION_EXCEPTION = 13,
-			VECTOR_PAGE_FAULT_EXCEPTION = 14,
-			VECTOR_X87_FLOATING_POINT_ERROR = 16,
-			VECTOR_ALIGNMENT_CHECK_EXCEPTION = 17,
-			VECTOR_MACHINE_CHECK_EXCEPTION = 18,
-			VECTOR_SIMD_FLOATING_POINT_EXCEPTION = 19,
-			VECTOR_VIRTUALIZATION_EXCEPTION = 20,
-			VECTOR_SECURITY_EXCEPTION = 30
-		};
-
-		union idt_entry
-		{
-			struct
-			{
-				uint64_t low64;
-				uint64_t high64;
-			} split;
-
-			struct
-			{
-				uint16_t offset_low;
-
-				union
-				{
-					uint16_t flags;
-
-					struct
-					{
-						uint16_t rpl : 2;
-						uint16_t table : 1;
-						uint16_t index : 13;
-					};
-				} segment_selector;
-				uint8_t reserved0;
-				union
-				{
-					uint8_t flags;
-
-					struct
-					{
-						uint8_t gate_type : 4;
-						uint8_t storage_segment : 1;
-						uint8_t dpl : 2;
-						uint8_t present : 1;
-					};
-				} type_attr;
-
-				uint16_t offset_mid;
-				uint32_t offset_high;
-				uint32_t reserved1;
-			};
-		};
-
-		struct idtr
-		{
-			uint16_t idt_limit;
-			uint64_t idt_base;
-
-			KLI_FORCEINLINE idt_entry *operator [](size_t index) {
-				return &((idt_entry *)idt_base)[index];
-			}
-		};
-#pragma pack(pop)
-
 		typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
-			uint16_t   e_magic;                     // Magic number
-			uint16_t   e_cblp;                      // Bytes on last page of file
-			uint16_t   e_cp;                        // Pages in file
-			uint16_t   e_crlc;                      // Relocations
-			uint16_t   e_cparhdr;                   // GetSize of header in paragraphs
-			uint16_t   e_minalloc;                  // Minimum extra paragraphs needed
-			uint16_t   e_maxalloc;                  // Maximum extra paragraphs needed
-			uint16_t   e_ss;                        // Initial (relative) SS value
-			uint16_t   e_sp;                        // Initial SP value
-			uint16_t   e_csum;                      // Checksum
-			uint16_t   e_ip;                        // Initial IP value
-			uint16_t   e_cs;                        // Initial (relative) CS value
-			uint16_t   e_lfarlc;                    // File address of relocation table
-			uint16_t   e_ovno;                      // Overlay number
-			uint16_t   e_res[4];                    // Reserved words
-			uint16_t   e_oemid;                     // OEM identifier (for e_oeminfo)
-			uint16_t   e_oeminfo;                   // OEM information; e_oemid specific
-			uint16_t   e_res2[10];                  // Reserved words
-			int32_t    e_lfanew;                    // File address of new exe header
-		} IMAGE_DOS_HEADER, *PIMAGE_DOS_HEADER;
+			unsigned short   e_magic;                     // Magic number
+			unsigned short   e_cblp;                      // Bytes on last page of file
+			unsigned short   e_cp;                        // Pages in file
+			unsigned short   e_crlc;                      // Relocations
+			unsigned short   e_cparhdr;                   // GetSize of header in paragraphs
+			unsigned short   e_minalloc;                  // Minimum extra paragraphs needed
+			unsigned short   e_maxalloc;                  // Maximum extra paragraphs needed
+			unsigned short   e_ss;                        // Initial (relative) SS value
+			unsigned short   e_sp;                        // Initial SP value
+			unsigned short   e_csum;                      // Checksum
+			unsigned short   e_ip;                        // Initial IP value
+			unsigned short   e_cs;                        // Initial (relative) CS value
+			unsigned short   e_lfarlc;                    // File address of relocation table
+			unsigned short   e_ovno;                      // Overlay number
+			unsigned short   e_res[4];                    // Reserved words
+			unsigned short   e_oemid;                     // OEM identifier (for e_oeminfo)
+			unsigned short   e_oeminfo;                   // OEM information; e_oemid specific
+			unsigned short   e_res2[10];                  // Reserved words
+			int    e_lfanew;                    // File address of new exe header
+		} IMAGE_DOS_HEADER, * PIMAGE_DOS_HEADER;
 
 		typedef struct _IMAGE_FILE_HEADER {
-			uint16_t    Machine;
-			uint16_t    NumberOfSections;
-			uint32_t   TimeDateStamp;
-			uint32_t   PointerToSymbolTable;
-			uint32_t   NumberOfSymbols;
-			uint16_t    SizeOfOptionalHeader;
-			uint16_t    Characteristics;
-		} IMAGE_FILE_HEADER, *PIMAGE_FILE_HEADER;
+			unsigned short    Machine;
+			unsigned short    NumberOfSections;
+			unsigned int   TimeDateStamp;
+			unsigned int   PointerToSymbolTable;
+			unsigned int   NumberOfSymbols;
+			unsigned short    SizeOfOptionalHeader;
+			unsigned short    Characteristics;
+		} IMAGE_FILE_HEADER, * PIMAGE_FILE_HEADER;
 
 		typedef struct _IMAGE_DATA_DIRECTORY {
-			uint32_t   VirtualAddress;
-			uint32_t   Size;
-		} IMAGE_DATA_DIRECTORY, *PIMAGE_DATA_DIRECTORY;
+			unsigned int   VirtualAddress;
+			unsigned int   Size;
+		} IMAGE_DATA_DIRECTORY, * PIMAGE_DATA_DIRECTORY;
 
 		typedef struct _IMAGE_OPTIONAL_HEADER64 {
-			uint16_t        Magic;
-			uint8_t        MajorLinkerVersion;
-			uint8_t        MinorLinkerVersion;
-			uint32_t       SizeOfCode;
-			uint32_t       SizeOfInitializedData;
-			uint32_t       SizeOfUninitializedData;
-			uint32_t       AddressOfEntryPoint;
-			uint32_t       BaseOfCode;
-			uint64_t   ImageBase;
-			uint32_t       SectionAlignment;
-			uint32_t       FileAlignment;
-			uint16_t        MajorOperatingSystemVersion;
-			uint16_t        MinorOperatingSystemVersion;
-			uint16_t        MajorImageVersion;
-			uint16_t        MinorImageVersion;
-			uint16_t        MajorSubsystemVersion;
-			uint16_t        MinorSubsystemVersion;
-			uint32_t       Win32VersionValue;
-			uint32_t       SizeOfImage;
-			uint32_t       SizeOfHeaders;
-			uint32_t       CheckSum;
-			uint16_t        Subsystem;
-			uint16_t        DllCharacteristics;
-			uint64_t   SizeOfStackReserve;
-			uint64_t   SizeOfStackCommit;
-			uint64_t   SizeOfHeapReserve;
-			uint64_t   SizeOfHeapCommit;
-			uint32_t       LoaderFlags;
-			uint32_t       NumberOfRvaAndSizes;
+			unsigned short        Magic;
+			unsigned char        MajorLinkerVersion;
+			unsigned char        MinorLinkerVersion;
+			unsigned int       SizeOfCode;
+			unsigned int       SizeOfInitializedData;
+			unsigned int       SizeOfUninitializedData;
+			unsigned int       AddressOfEntryPoint;
+			unsigned int       BaseOfCode;
+			unsigned long long   ImageBase;
+			unsigned int       SectionAlignment;
+			unsigned int       FileAlignment;
+			unsigned short        MajorOperatingSystemVersion;
+			unsigned short        MinorOperatingSystemVersion;
+			unsigned short        MajorImageVersion;
+			unsigned short        MinorImageVersion;
+			unsigned short        MajorSubsystemVersion;
+			unsigned short        MinorSubsystemVersion;
+			unsigned int       Win32VersionValue;
+			unsigned int       SizeOfImage;
+			unsigned int       SizeOfHeaders;
+			unsigned int       CheckSum;
+			unsigned short        Subsystem;
+			unsigned short        DllCharacteristics;
+			unsigned long long   SizeOfStackReserve;
+			unsigned long long   SizeOfStackCommit;
+			unsigned long long   SizeOfHeapReserve;
+			unsigned long long   SizeOfHeapCommit;
+			unsigned int       LoaderFlags;
+			unsigned int       NumberOfRvaAndSizes;
 			IMAGE_DATA_DIRECTORY DataDirectory[16];
-		} IMAGE_OPTIONAL_HEADER64, *PIMAGE_OPTIONAL_HEADER64;
+		} IMAGE_OPTIONAL_HEADER64, * PIMAGE_OPTIONAL_HEADER64;
 
 		typedef struct _IMAGE_NT_HEADERS64 {
-			uint32_t Signature;
+			unsigned int Signature;
 			IMAGE_FILE_HEADER FileHeader;
 			IMAGE_OPTIONAL_HEADER64 OptionalHeader;
-		} IMAGE_NT_HEADERS64, *PIMAGE_NT_HEADERS64;
+		} IMAGE_NT_HEADERS64, * PIMAGE_NT_HEADERS64;
 
 		typedef struct _IMAGE_EXPORT_DIRECTORY {
-			uint32_t   Characteristics;
-			uint32_t   TimeDateStamp;
-			uint16_t   MajorVersion;
-			uint16_t   MinorVersion;
-			uint32_t   Name;
-			uint32_t   Base;
-			uint32_t   NumberOfFunctions;
-			uint32_t   NumberOfNames;
-			uint32_t   AddressOfFunctions;     // RVA from base of image
-			uint32_t   AddressOfNames;         // RVA from base of image
-			uint32_t   AddressOfNameOrdinals;  // RVA from base of image
-		} IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;
+			unsigned int   Characteristics;
+			unsigned int   TimeDateStamp;
+			unsigned short   MajorVersion;
+			unsigned short   MinorVersion;
+			unsigned int   Name;
+			unsigned int   Base;
+			unsigned int   NumberOfFunctions;
+			unsigned int   NumberOfNames;
+			unsigned int   AddressOfFunctions;     // RVA from base of image
+			unsigned int   AddressOfNames;         // RVA from base of image
+			unsigned int   AddressOfNameOrdinals;  // RVA from base of image
+		} IMAGE_EXPORT_DIRECTORY, * PIMAGE_EXPORT_DIRECTORY;
 
-		constexpr uint16_t IMAGE_DOS_SIGNATURE = 0x5A4D;
-		constexpr uint32_t IMAGE_NT_SIGNATURE = 0x00004550;
-		constexpr uint16_t IMAGE_FILE_MACHINE_AMD64 = 0x8664;
 		constexpr auto IMAGE_DIRECTORY_ENTRY_EXPORT = 0;
 
-		typedef enum _SYSTEM_INFORMATION_CLASS
+		KLI_FORCEINLINE unsigned long long get_kernel_base()
 		{
-			SystemBasicInformation,
-			SystemProcessorInformation,
-			SystemPerformanceInformation,
-			SystemTimeOfDayInformation,
-			SystemPathInformation,
-			SystemProcessInformation,
-			SystemCallCountInformation,
-			SystemDeviceInformation,
-			SystemProcessorPerformanceInformation,
-			SystemFlagsInformation,
-			SystemCallTimeInformation,
-			SystemModuleInformation,
-		} SYSTEM_INFORMATION_CLASS, *PSYSTEM_INFORMATION_CLASS;
+			auto Idt_base = (unsigned long long)(KeGetPcr()->IdtBase);
+			auto align_page = *(unsigned long long*)(Idt_base + 4) >> 0xc << 0xc;
 
-		typedef struct _SYSTEM_MODULE {
-			HANDLE Section;
-			PVOID MappedBase;
-			uint64_t ImageBase;
-			ULONG ImageSize;
-			ULONG Flags;
-			USHORT LoadOrderIndex;
-			USHORT InitOrderIndex;
-			USHORT LoadCount;
-			USHORT OffsetToFileName;
-			UCHAR  FullPathName[MAXIMUM_FILENAME_LENGTH];
-		} SYSTEM_MODULE, *PSYSTEM_MODULE;
+			for (; align_page; align_page -= PAGE_SIZE)
+			{
+				for (int index = 0; index < PAGE_SIZE - 0x7; index++)
+				{
+					auto current_address = (long long)(align_page) + index; // maybe static_cast
+					if
+						(
+							( //SeSetAuditParameter
+								*(unsigned char*)(current_address) == 0x48
+								&& *(unsigned char*)(current_address + 1) == 0x8D
+								&& *(unsigned char*)(current_address + 2) == 0x3D
+								&& *(unsigned char*)(current_address + 6) == 0xFF
+								&& *(unsigned char*)(current_address + 7) == 0x48
+								&& *(unsigned char*)(current_address + 8) == 0x63
+								)
+							||
 
-		typedef struct _SYSTEM_MODULE_INFORMATION {
-			ULONG NumberOfModules;
-			SYSTEM_MODULE Modules[1];
-		} SYSTEM_MODULE_INFORMATION, *PSYSTEM_MODULE_INFORMATION;
-
-		KLI_FORCEINLINE bool is_kernel_base(uintptr_t addr)
-		{
-			const auto dos_header = (PIMAGE_DOS_HEADER)addr;
-
-			if (dos_header->e_magic != IMAGE_DOS_SIGNATURE)
-				return false;
-
-			const auto nt_headers = (PIMAGE_NT_HEADERS64)(addr + dos_header->e_lfanew);
-
-			if (nt_headers->Signature != IMAGE_NT_SIGNATURE)
-				return false;
-
-			if (nt_headers->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64)
-				return false;
-
-			//
-			// Check the dll name in EAT->Name
-			//
-			const auto export_directory = (PIMAGE_EXPORT_DIRECTORY)(addr + nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
-			const auto dll_name = (const char *)(addr + export_directory->Name);
-			const auto dll_name_hash = KLI_HASH_RTS(dll_name);
-
-			if (dll_name_hash != KLI_HASH_STR("ntoskrnl.exe"))
-				return false;
-
-			return true;
-		}
-
-		KLI_FORCEINLINE uintptr_t get_kernel_base()
-		{
-			uintptr_t addr = 0;
-
-			ULONG size = 0;
-			NTSTATUS status = ZwQuerySystemInformation(SystemModuleInformation, 0, 0, &size);
-			if (STATUS_INFO_LENGTH_MISMATCH != status) {
-				return addr;
+							( //VfPowerDumpIrpStack
+								*(unsigned char*)(current_address) == 0x48
+								&& *(unsigned char*)(current_address + 1) == 0x8D
+								&& *(unsigned char*)(current_address + 2) == 0x3D
+								&& *(unsigned char*)(current_address + 6) == 0xFF
+								&& *(unsigned char*)(current_address + 7) == 0x48
+								&& *(unsigned char*)(current_address + 8) == 0x8B
+								&& *(unsigned char*)(current_address + 9) == 0x8C
+								&& *(unsigned char*)(current_address + 15) == 0xE8
+								)
+							||
+							( //RtlMapSecurityErrorToNtStatus
+								*(unsigned char*)(current_address) == 0x4C
+								&& *(unsigned char*)(current_address + 1) == 0x8D
+								&& *(unsigned char*)(current_address + 2) == 0x3D
+								&& *(unsigned char*)(current_address + 6) == 0xFF
+								&& *(unsigned char*)(current_address + 7) == 0x48
+								&& *(unsigned char*)(current_address + 8) == 0x98
+								)
+							)
+					{
+						auto nto_base_offset = *(int*)(current_address + 3);
+						auto nto_base_ = (current_address + nto_base_offset + 7);
+						if (!(nto_base_ & 0xfff))
+						{
+							return nto_base_;
+						}
+					}
+				}
 			}
-
-			PSYSTEM_MODULE_INFORMATION modules = (PSYSTEM_MODULE_INFORMATION)ExAllocatePool(NonPagedPool, size);
-			if (!modules) {
-				return addr;
-			}
-
-			if (!NT_SUCCESS(status = ZwQuerySystemInformation(SystemModuleInformation, modules, size, 0))) {
-				ExFreePool(modules);
-				return addr;
-			}
-
-			if (modules->NumberOfModules > 0) {
-				addr = modules->Modules[0].ImageBase;
-			}
-
-			ExFreePool(modules);
-			return addr;
+			return NULL;
 		}
 	}
 
-	KLI_FORCEINLINE uintptr_t find_kernel_export(uint64_t export_hash)
+	KLI_FORCEINLINE unsigned long long find_kernel_export(unsigned long long export_hash)
 	{
 		if (!cache::base)
 			cache::base = detail::get_kernel_base();
@@ -450,26 +331,24 @@ namespace kli {
 		const auto export_directory = (detail::PIMAGE_EXPORT_DIRECTORY)(cache::base +
 			nt_headers->OptionalHeader.DataDirectory[detail::IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
 
-		const auto address_of_functions = (uint32_t *)(cache::base + export_directory->AddressOfFunctions);
-		const auto address_of_names = (uint32_t *)(cache::base + export_directory->AddressOfNames);
-		const auto address_of_name_ordinals = (uint16_t *)(cache::base + export_directory->AddressOfNameOrdinals);
+		const auto address_of_functions = (unsigned int*)(cache::base + export_directory->AddressOfFunctions);
+		const auto address_of_names = (unsigned int*)(cache::base + export_directory->AddressOfNames);
+		const auto address_of_name_ordinals = (unsigned short*)(cache::base + export_directory->AddressOfNameOrdinals);
 
-		for (uint32_t i = 0; i < export_directory->NumberOfNames; ++i)
+		for (unsigned int i = 0; i < export_directory->NumberOfNames; ++i)
 		{
-			const auto export_entry_name = (char *)(cache::base + address_of_names[i]);
+			const auto export_entry_name = (char*)(cache::base + address_of_names[i]);
 			const auto export_entry_hash = KLI_HASH_RTS(export_entry_name);
 
-			//
+			
 			// address_of_functions is indexed through an ordinal
 			// address_of_name_ordinals gets the ordinal through our own index - i.
-			//
 			if (export_entry_hash == export_hash)
 				return cache::base + address_of_functions[address_of_name_ordinals[i]];
 		}
 
-		__debugbreak();
-		return { };
+		return 0ULL;
 	}
 }
 
-#define KLI_FN(name) ((decltype(&##name))(::kli::find_kernel_export(KLI_HASH_STR(#name))))
+#endif // include guard
