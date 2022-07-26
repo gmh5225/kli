@@ -317,7 +317,7 @@ namespace kli {
 					}
 				}
 			}
-			return NULL;
+			return 0ULL;
 		}
 	}
 
