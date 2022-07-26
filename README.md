@@ -141,3 +141,4 @@ LABEL_18:
 - https://twitter.com/JustasMasiulis for making [lazy_importer](https://github.com/JustasMasiulis/lazy_importer)
 - https://twitter.com/Ch40zz_ codereview/debugging
 - https://twitter.com/duk_37 codereview
+- https://github.com/Ahora57 for [GetKernelBaseEx](https://github.com/Ahora57/GetKernelBaseEx)
