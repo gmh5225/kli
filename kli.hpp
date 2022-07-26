@@ -267,18 +267,18 @@ namespace kli {
 
 		KLI_FORCEINLINE unsigned long long get_kernel_base()
 		{
-			auto Idt_base = (unsigned long long)(KeGetPcr()->IdtBase);
+			auto Idt_base = (unsigned long long)KeGetPcr()->IdtBase;
 			auto align_page = *(unsigned long long*)(Idt_base + 4) >> 0xc << 0xc;
 
 			for (; align_page; align_page -= PAGE_SIZE)
 			{
 				for (int index = 0; index < PAGE_SIZE - 0x7; index++)
 				{
-					auto current_address = (long long)(align_page) + index; // maybe static_cast
+					auto current_address = static_cast<long long>(align_page) + index;
 					if
 						(
 							( //SeSetAuditParameter
-								*(unsigned char*)(current_address) == 0x48
+								*(unsigned char*)current_address == 0x48
 								&& *(unsigned char*)(current_address + 1) == 0x8D
 								&& *(unsigned char*)(current_address + 2) == 0x3D
 								&& *(unsigned char*)(current_address + 6) == 0xFF
@@ -288,7 +288,7 @@ namespace kli {
 							||
 
 							( //VfPowerDumpIrpStack
-								*(unsigned char*)(current_address) == 0x48
+								*(unsigned char*)current_address == 0x48
 								&& *(unsigned char*)(current_address + 1) == 0x8D
 								&& *(unsigned char*)(current_address + 2) == 0x3D
 								&& *(unsigned char*)(current_address + 6) == 0xFF
@@ -299,7 +299,7 @@ namespace kli {
 								)
 							||
 							( //RtlMapSecurityErrorToNtStatus
-								*(unsigned char*)(current_address) == 0x4C
+								*(unsigned char*)current_address == 0x4C
 								&& *(unsigned char*)(current_address + 1) == 0x8D
 								&& *(unsigned char*)(current_address + 2) == 0x3D
 								&& *(unsigned char*)(current_address + 6) == 0xFF
@@ -309,7 +309,7 @@ namespace kli {
 							)
 					{
 						auto nto_base_offset = *(int*)(current_address + 3);
-						auto nto_base_ = (current_address + nto_base_offset + 7);
+						auto nto_base_ = current_address + nto_base_offset + 7;
 						if (!(nto_base_ & 0xfff))
 						{
 							return nto_base_;
