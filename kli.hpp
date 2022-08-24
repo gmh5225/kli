@@ -69,8 +69,6 @@ namespace clonestd
 	using remove_const_t = typename remove_const<_Ty>::type;
 }
 
-#define KLI_FN(name) ((decltype(&##name))(::kli::find_kernel_export(KLI_HASH_STR(#name))))
-
 namespace kli {
 	namespace cache {
 		inline unsigned long long base;
@@ -255,54 +253,21 @@ namespace kli {
 			unsigned int   AddressOfNameOrdinals;  // RVA from base of image
 		} IMAGE_EXPORT_DIRECTORY, * PIMAGE_EXPORT_DIRECTORY;
 
-		constexpr auto IMAGE_DIRECTORY_ENTRY_EXPORT = 0;
-
 		KLI_FORCEINLINE unsigned long long get_kernel_base()
 		{
 			auto Idt_base = (unsigned long long)KeGetPcr()->IdtBase;
-			auto align_page = *(unsigned long long*)(Idt_base + 4) >> 0xc << 0xc;
+			auto align_page = *(unsigned long long*)(Idt_base + 4) >> 0xC << 0xC;
 
-			for (; align_page; align_page -= PAGE_SIZE)
+			for (; align_page; align_page -= 0x1000)
 			{
-				for (int index = 0; index < PAGE_SIZE - 0x7; index++)
+				for (int index = 0; index < 0x1000 - 0x7; index++)
 				{
 					auto current_address = static_cast<long long>(align_page) + index;
-					if
-						(
-							( //SeSetAuditParameter
-								*(unsigned char*)current_address == 0x48
-								&& *(unsigned char*)(current_address + 1) == 0x8D
-								&& *(unsigned char*)(current_address + 2) == 0x3D
-								&& *(unsigned char*)(current_address + 6) == 0xFF
-								&& *(unsigned char*)(current_address + 7) == 0x48
-								&& *(unsigned char*)(current_address + 8) == 0x63
-								)
-							||
-
-							( //VfPowerDumpIrpStack
-								*(unsigned char*)current_address == 0x48
-								&& *(unsigned char*)(current_address + 1) == 0x8D
-								&& *(unsigned char*)(current_address + 2) == 0x3D
-								&& *(unsigned char*)(current_address + 6) == 0xFF
-								&& *(unsigned char*)(current_address + 7) == 0x48
-								&& *(unsigned char*)(current_address + 8) == 0x8B
-								&& *(unsigned char*)(current_address + 9) == 0x8C
-								&& *(unsigned char*)(current_address + 15) == 0xE8
-								)
-							||
-							( //RtlMapSecurityErrorToNtStatus
-								*(unsigned char*)current_address == 0x4C
-								&& *(unsigned char*)(current_address + 1) == 0x8D
-								&& *(unsigned char*)(current_address + 2) == 0x3D
-								&& *(unsigned char*)(current_address + 6) == 0xFF
-								&& *(unsigned char*)(current_address + 7) == 0x48
-								&& *(unsigned char*)(current_address + 8) == 0x98
-								)
-							)
+					if ((*(unsigned char*)current_address == 0x48 && *(unsigned char*)(current_address + 1) == 0x8D && *(unsigned char*)(current_address + 2) == 0x3D && *(unsigned char*)(current_address + 6) == 0xFF && *(unsigned char*)(current_address + 7) == 0x48 && *(unsigned char*)(current_address + 8) == 0x63) || (*(unsigned char*)current_address == 0x48 && *(unsigned char*)(current_address + 1) == 0x8D && *(unsigned char*)(current_address + 2) == 0x3D && *(unsigned char*)(current_address + 6) == 0xFF && *(unsigned char*)(current_address + 7) == 0x48 && *(unsigned char*)(current_address + 8) == 0x8B && *(unsigned char*)(current_address + 9) == 0x8C && *(unsigned char*)(current_address + 15) == 0xE8) || (*(unsigned char*)current_address == 0x4C && *(unsigned char*)(current_address + 1) == 0x8D && *(unsigned char*)(current_address + 2) == 0x3D && *(unsigned char*)(current_address + 6) == 0xFF && *(unsigned char*)(current_address + 7) == 0x48 && *(unsigned char*)(current_address + 8) == 0x98))
 					{
 						auto nto_base_offset = *(int*)(current_address + 3);
 						auto nto_base_ = current_address + nto_base_offset + 7;
-						if (!(nto_base_ & 0xfff))
+						if (!(nto_base_ & 0xFFF))
 						{
 							return nto_base_;
 						}
@@ -320,8 +285,7 @@ namespace kli {
 
 		const auto dos_header = (detail::PIMAGE_DOS_HEADER)cache::base;
 		const auto nt_headers = (detail::PIMAGE_NT_HEADERS64)(cache::base + dos_header->e_lfanew);
-		const auto export_directory = (detail::PIMAGE_EXPORT_DIRECTORY)(cache::base +
-			nt_headers->OptionalHeader.DataDirectory[detail::IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+		const auto export_directory = (detail::PIMAGE_EXPORT_DIRECTORY)(cache::base + nt_headers->OptionalHeader.DataDirectory[0].VirtualAddress);
 
 		const auto address_of_functions = (unsigned int*)(cache::base + export_directory->AddressOfFunctions);
 		const auto address_of_names = (unsigned int*)(cache::base + export_directory->AddressOfNames);
@@ -332,7 +296,7 @@ namespace kli {
 			const auto export_entry_name = (char*)(cache::base + address_of_names[i]);
 			const auto export_entry_hash = KLI_HASH_RTS(export_entry_name);
 
-			
+
 			// address_of_functions is indexed through an ordinal
 			// address_of_name_ordinals gets the ordinal through our own index - i.
 			if (export_entry_hash == export_hash)
@@ -342,5 +306,7 @@ namespace kli {
 		return 0ULL;
 	}
 }
+
+#define KLI_FN(name) ((decltype(&##name))(::kli::find_kernel_export(KLI_HASH_STR(#name))))
 
 #endif // include guard
